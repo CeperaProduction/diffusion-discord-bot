@@ -188,7 +188,7 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                                 .flatMap(s->event.editReply(generationStartedResponseTest(event, description, style)))
                                 .then(Mono.just(status)))
                         .filter(QueueStatus::isTerminalStatus)
-                        .repeatWhenEmpty(flux->flux.filter(counter->counter < 120L).delayElements(Duration.ofSeconds(1))))
+                        .repeatWhenEmpty(flux->flux.filter(counter->counter < 600L).delayElements(Duration.ofSeconds(2))))
                         .switchIfEmpty(Mono.error(()->new TimeoutException("The picture is painting for longer than 120 seconds. Stop polling.")))
                         .filter(status->status == QueueStatus.SUCCESS)
                         .switchIfEmpty(Mono.error(()->new IllegalStateException("Picture painting process ended with bad status.")))
