@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -172,15 +173,20 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
 
     private Mono<Void> handlePaintCommand(ApplicationCommandInteractionEvent event, String description, ImageStyle style){
         String actionIdentity = createActionIdentity(event);
+        AtomicBoolean started = new AtomicBoolean();
         return Mono.defer(()->event.reply(InteractionApplicationCommandCallbackSpec.builder()
                         .ephemeral(true)
-                        .content(generationStartedResponseTest(event, description, style))
+                        .content(generationQueuedResponseTest(event, description, style))
                         .build()))
                 .then(diffusionService.checkQueue())
                 .doOnNext(queue->LOGGER.info("Start painting for action {}. Current queue state is {}", actionIdentity, queue))
                 .then(diffusionService.runGeneration(description, style, 1))
                 .flatMap(pocket->Mono.defer(()->diffusionService.getStatus(pocket.getPocketId())
                         .doOnNext(queue->LOGGER.info("Continue painting for action {}. Current queue state is {}", actionIdentity, queue))
+                        .flatMap(status->Mono.just(status)
+                                .filter(s->s != QueueStatus.INITIAL && !started.getAndSet(true))
+                                .flatMap(s->event.editReply(generationStartedResponseTest(event, description, style)))
+                                .then(Mono.just(status)))
                         .filter(QueueStatus::isTerminalStatus)
                         .repeatWhenEmpty(flux->flux.filter(counter->counter < 120L).delayElements(Duration.ofSeconds(1))))
                         .switchIfEmpty(Mono.error(()->new TimeoutException("The picture is painting for longer than 120 seconds. Stop polling.")))
@@ -259,6 +265,13 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
 
     private String styleChangedResponseText(ApplicationCommandInteractionEvent event, ImageStyle style) {
         return localization(event.getInteraction().getUserLocale(), "message.style.changed",
+                "style", localization(event.getInteraction().getUserLocale(), style));
+    }
+
+    private String generationQueuedResponseTest(ApplicationCommandInteractionEvent event, String description, ImageStyle style) {
+        String langKey = style.isUndefinedStyle() ? "message.paint.queued" : "message.paint.queued.styled";
+        return localization(event.getInteraction().getUserLocale(), langKey,
+                "description", description,
                 "style", localization(event.getInteraction().getUserLocale(), style));
     }
 

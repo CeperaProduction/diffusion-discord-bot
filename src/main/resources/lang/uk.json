@@ -17,6 +17,8 @@
 
 	  "message.paint.started": "Рисуем \"{description}\"...",
 	  "message.paint.started.styled": "Рисуем \"{description}\" в стиле {style}...",
+	  "message.paint.queued": "Рисунок \"{description}\" добавлен в очередь...",
+	  "message.paint.queued.styled": "Рисунок \"{description}\" в стиле {style} добавлен в очередь...",
 	  "message.paint.error": "Во время рисования произошла ошибка.",
 	  "message.style.changed": "Теперь ваш стандартный стиль картин - {style}",
 	  "message.queue.status": "Текущее состояние очереди: {current} {day}",
