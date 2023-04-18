@@ -9,6 +9,14 @@ import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.values.Values;
 import reactor.core.publisher.Mono;
 
+/**
+ *
+ * There are no plans for this bot for now. Just a toy for several people.
+ * So this storage implementation is enough.
+ *
+ * @author Cepera
+ *
+ */
 public class ChronicleUserStyleRepository implements UserStyleRepository {
 
     private final ChronicleMap<LongValue, IntValue> storedStyles;
@@ -22,7 +30,7 @@ public class ChronicleUserStyleRepository implements UserStyleRepository {
             return ChronicleMap
                     .of(LongValue.class, IntValue.class)
                     .name("user-styles")
-                    .putReturnsNull(false)
+                    .putReturnsNull(true)
                     .entries(1<<20)
                     .createPersistedTo(storageFile);
         } catch (IOException e) {
