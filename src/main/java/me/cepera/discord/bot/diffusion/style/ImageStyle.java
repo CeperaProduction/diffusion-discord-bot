@@ -10,4 +10,8 @@ public interface ImageStyle {
 
     String getStyleQuery();
 
+    default boolean isUndefinedStyle() {
+        return getStyleQuery().isEmpty();
+    }
+
 }

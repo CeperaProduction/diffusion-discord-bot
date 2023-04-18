@@ -213,21 +213,23 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
 
             String imageName = "painting"+(++counter)+".png";
 
-            EmbedCreateSpec embeded = EmbedCreateSpec.builder()
+            EmbedCreateSpec.Builder embededBuilder = EmbedCreateSpec.builder()
                     .title(localization(event.getInteraction().getUserLocale(), "element.painted"))
                     .description(description)
-                    .addField(localization(event.getInteraction().getUserLocale(), "element.style"),
-                            localization(event.getInteraction().getUserLocale(), style), true)
+                    .image("attachment://"+imageName)
                     .color(chooseColor(result))
                     .timestamp(Instant.ofEpochMilli(result.getUpdatedAt().getTime()))
-                    .image("attachment://"+imageName)
-                    .footer(event.getInteraction().getUser().getTag(), event.getInteraction().getUser().getAvatarUrl())
-                    .build();
+                    .footer(event.getInteraction().getUser().getTag(), event.getInteraction().getUser().getAvatarUrl());
+
+            if(!style.isUndefinedStyle()) {
+                embededBuilder.addField(localization(event.getInteraction().getUserLocale(), "element.style"),
+                        localization(event.getInteraction().getUserLocale(), style), true);
+            }
 
             MessageCreateFields.File file = MessageCreateFields.File.of(imageName,
                     new ByteArrayInputStream(base64ToBytes(base64ImageContent)));
 
-            embededs.add(embeded);
+            embededs.add(embededBuilder.build());
             files.add(file);
 
         }
@@ -261,7 +263,8 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
     }
 
     private String generationStartedResponseTest(ApplicationCommandInteractionEvent event, String description, ImageStyle style) {
-        return localization(event.getInteraction().getUserLocale(), "message.paint.started",
+        String langKey = style.isUndefinedStyle() ? "message.paint.started" : "message.paint.started.styled";
+        return localization(event.getInteraction().getUserLocale(), langKey,
                 "description", description,
                 "style", localization(event.getInteraction().getUserLocale(), style));
     }
