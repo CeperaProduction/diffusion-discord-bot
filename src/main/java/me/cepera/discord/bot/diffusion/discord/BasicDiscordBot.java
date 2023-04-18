@@ -35,6 +35,10 @@ public abstract class BasicDiscordBot implements DiscordBot{
     @Override
     public void start(String botApiKey) {
 
+        if(botApiKey == null || botApiKey.isEmpty()) {
+            throw new IllegalArgumentException("Discord bot key must be provided.");
+        }
+
         DiscordClient.create(botApiKey)
             .withGateway(client->{
 
