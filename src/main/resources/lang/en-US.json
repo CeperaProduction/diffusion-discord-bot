@@ -1,0 +1,51 @@
+{
+  "content" : {
+	  "command.paint": "paint",
+	  "command.paint.description": "Ask bot to paint a picture",
+	  "command.paint.option.description": "description",
+	  "command.paint.option.description.description": "What bot should paint",
+	  "command.paint.option.style": "style",
+	  "command.paint.option.style.description": "Style for this picture",
+
+	  "command.style": "style",
+	  "command.style.description": "Change your default image style",
+	  "command.style.option.style": "style",
+	  "command.style.option.style.description": "New default image style",
+
+	  "command.queue": "queue",
+	  "command.queue.description": "Check backed neural network's queue",
+
+	  "message.paint.started": "Painting \"{description}\" in style of {style}",
+	  "message.paint.error": "An unexpected error occurred while painting the picture",
+	  "message.style.changed": "Your new painting style is {style}",
+	  "message.queue.status": "Current queue status is: {current} {day}",
+
+	  "element.painted": "Painted",
+	  "element.style": "Style",
+
+	  "style.no_style": "No style",
+	  "style.anime": "Anime",
+	  "style.detailed": "Detailed photo",
+	  "style.cyberpunk": "Cyberpunk",
+	  "style.kandinsky": "Kandinsky",
+	  "style.aivazovsky": "Aivazovsky",
+	  "style.malevich": "Malevich",
+	  "style.pikasso": "Pikasso",
+	  "style.goncharova": "Goncharova",
+	  "style.classicism": "Classicism",
+	  "style.renaissance": "Renaissance",
+	  "style.oil_painting": "Oil painting",
+	  "style.pencil_drawing": "Pencil drawing",
+	  "style.digital_painting": "Digital painting",
+	  "style.medieval": "Medieval",
+	  "style.soviet_cartoons": "Soviet cartoons",
+	  "style.render_3d": "3D render",
+	  "style.cartoons": "Cartoons",
+	  "style.photo_studio": "Photo studio",
+	  "style.portrait_photo": "Portrait photo",
+	  "style.mosaic": "Mosaic",
+	  "style.icon": "Icons",
+	  "style.khokhloma": "Khokhloma",
+	  "style.new_year": "New year"
+	}
+}

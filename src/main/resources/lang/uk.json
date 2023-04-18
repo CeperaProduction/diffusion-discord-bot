@@ -1,0 +1,51 @@
+{
+  "content" : {
+	  "command.paint": "рисуй",
+	  "command.paint.description": "Вежливо попросить бота нарисовать картину",
+	  "command.paint.option.description": "описание",
+	  "command.paint.option.description.description": "Детальное описание того, что бот должен нарисовать",
+	  "command.paint.option.style": "стиль",
+	  "command.paint.option.style.description": "Стиль этой картины",
+
+	  "command.style": "стиль",
+	  "command.style.description": "Изменить свой стандартный стиль картин",
+	  "command.style.option.style": "стиль",
+	  "command.style.option.style.description": "Новый стиль картин",
+
+	  "command.queue": "очередь",
+	  "command.queue.description": "Проверить состояние очереди нейронной сети",
+
+	  "message.paint.started": "Рисуем \"{description}\" в стиле {style}...",
+	  "message.paint.error": "Во время рисования произошла ошибка.",
+	  "message.style.changed": "Теперь ваш стандартный стиль картин - {style}",
+	  "message.queue.status": "Текущее состояние очереди: {current} {day}",
+
+	  "element.painted": "Нарисовано",
+	  "element.style": "Стиль",
+
+	  "style.no_style": "Без стиля",
+	  "style.anime": "Аниме",
+	  "style.detailed": "Детальное фото",
+	  "style.cyberpunk": "Киберпанк",
+	  "style.kandinsky": "Кандинский",
+	  "style.aivazovsky": "Айвазовский",
+	  "style.malevich": "Малевич",
+	  "style.pikasso": "Пикассо",
+	  "style.goncharova": "Гончарова",
+	  "style.classicism": "Классицизм",
+	  "style.renaissance": "Ренессанс",
+	  "style.oil_painting": "Картина маслом",
+	  "style.pencil_drawing": "Рисунок карандашом",
+	  "style.digital_painting": "Цифровая живопись",
+	  "style.medieval": "Средневековье",
+	  "style.soviet_cartoons": "Советские мультфильмы",
+	  "style.render_3d": "3D рендер",
+	  "style.cartoons": "Мультфильмы",
+	  "style.photo_studio": "Студийное фото",
+	  "style.portrait_photo": "Портретное фото",
+	  "style.mosaic": "Мозайка",
+	  "style.icon": "Иконопись",
+	  "style.khokhloma": "Хохлома",
+	  "style.new_year": "Новый год"
+	}
+}
