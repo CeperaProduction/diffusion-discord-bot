@@ -178,8 +178,12 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                         .ephemeral(true)
                         .content(generationQueuedResponseTest(event, description, style))
                         .build()))
-                .then(diffusionService.checkQueue())
-                .doOnNext(queue->LOGGER.info("Start painting for action {}. Current queue state is {}", actionIdentity, queue))
+                .then(diffusionService.checkQueue()
+                        .doOnNext(queue->LOGGER.info("Start painting for action {}. Current queue state is {}", actionIdentity, queue))
+                        .onErrorResume(e->{
+                            LOGGER.error("Error on pre-generation queue check", e);
+                            return Mono.empty();
+                        }))
                 .then(diffusionService.runGeneration(description, style, 1))
                 .flatMap(pocket->Mono.defer(()->diffusionService.getStatus(pocket.getPocketId())
                         .doOnNext(queue->LOGGER.info("Continue painting for action {}. Current queue state is {}", actionIdentity, queue))

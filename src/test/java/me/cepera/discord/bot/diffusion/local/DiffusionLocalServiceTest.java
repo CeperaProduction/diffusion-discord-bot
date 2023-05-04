@@ -51,16 +51,20 @@ public class DiffusionLocalServiceTest {
     }
 
     @Test
-    void testImageGeneration() throws InterruptedException {
-
-        ImageStyle style = DefaultDiffusionImageStyle.ANIME;
-        String description = "Электропоезд ласточка";
+    void testQueueCheck() {
 
         DiffusionQueue queue = service.checkQueue().block();
 
         System.err.println("queue: "+queue);
 
         assertNotNull(queue, "Queue was not received");
+    }
+
+    @Test
+    void testImageGeneration() throws InterruptedException {
+
+        ImageStyle style = DefaultDiffusionImageStyle.ANIME;
+        String description = "Электропоезд ласточка";
 
         DiffusionPocket pocket = service.runGeneration(description, style, 1).block();
 
