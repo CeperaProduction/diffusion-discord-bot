@@ -22,6 +22,7 @@
 	  "message.paint.error": "Во время рисования произошла ошибка.",
 	  "message.style.changed": "Теперь ваш стандартный стиль картин - {style}",
 	  "message.queue.status": "Текущее состояние очереди: {current} {day}",
+	  "message.command.error": "Во время выполнения команды произошла ошибка",
 
 	  "element.painted": "Нарисовано",
 	  "element.style": "Стиль",

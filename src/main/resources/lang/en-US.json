@@ -22,6 +22,7 @@
 	  "message.paint.error": "An unexpected error occurred while painting the picture",
 	  "message.style.changed": "Your new painting style is {style}",
 	  "message.queue.status": "Current queue status is: {current} {day}",
+	  "message.command.error": "An error occurred during command execution",
 
 	  "element.painted": "Painted",
 	  "element.style": "Style",

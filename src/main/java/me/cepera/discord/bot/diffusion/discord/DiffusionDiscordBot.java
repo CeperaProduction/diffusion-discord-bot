@@ -172,16 +172,16 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
     }
 
     private Mono<Void> handlePaintCommand(ApplicationCommandInteractionEvent event, String description, ImageStyle style){
-        String actionIdentity = createActionIdentity(event);
+        String actionIdentity = createActionIdentity(event, "paint");
         AtomicBoolean started = new AtomicBoolean();
         return Mono.defer(()->event.reply(InteractionApplicationCommandCallbackSpec.builder()
                         .ephemeral(true)
-                        .content(generationQueuedResponseTest(event, description, style))
+                        .content(generationQueuedResponseText(event, description, style))
                         .build()))
                 .then(diffusionService.checkQueue()
                         .doOnNext(queue->LOGGER.info("Start painting for action {}. Current queue state is {}", actionIdentity, queue))
                         .onErrorResume(e->{
-                            LOGGER.error("Error on pre-generation queue check", e);
+                            LOGGER.error("Error on pre-generation queue check. Action: {} Error: {}", actionIdentity, ThrowableUtil.stackTraceToString(e));
                             return Mono.empty();
                         }))
                 .then(diffusionService.runGeneration(description, style, 1))
@@ -189,7 +189,7 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                         .doOnNext(queue->LOGGER.info("Continue painting for action {}. Current queue state is {}", actionIdentity, queue))
                         .flatMap(status->Mono.just(status)
                                 .filter(s->s != QueueStatus.INITIAL && !started.getAndSet(true))
-                                .flatMap(s->event.editReply(generationStartedResponseTest(event, description, style)))
+                                .flatMap(s->event.editReply(generationStartedResponseText(event, description, style)))
                                 .then(Mono.just(status)))
                         .filter(QueueStatus::isTerminalStatus)
                         .repeatWhenEmpty(flux->flux.filter(counter->counter < 600L).delayElements(Duration.ofSeconds(2))))
@@ -202,13 +202,22 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                 .then(Mono.<Void>fromRunnable(()->LOGGER.info("Result of painting action {} sended.", actionIdentity)))
                 .onErrorResume(e->{
                     LOGGER.error("Got error on action {}: {}", actionIdentity, ThrowableUtil.stackTraceToString(e));
-                    return event.editReply(generationFailedResponseTest(event, description, style))
+                    return event.editReply(generationFailedResponseText(event, description, style))
                             .then();
                 });
     }
 
     private Mono<Void> handleQueueCommand(ApplicationCommandInteractionEvent event){
+        String actionIdentity = createActionIdentity(event, "queue");
         return diffusionService.checkQueue()
+                .onErrorResume(e->{
+                    LOGGER.error("Got error on action {}: {}", actionIdentity, ThrowableUtil.stackTraceToString(e));
+                    return event.reply(InteractionApplicationCommandCallbackSpec.builder()
+                            .content(commandErrorText(event))
+                            .ephemeral(true)
+                            .build())
+                            .then(Mono.empty());
+                })
                 .flatMap(queue->event.reply(InteractionApplicationCommandCallbackSpec.builder()
                         .content(queueOutput(event, queue))
                         .ephemeral(true)
@@ -256,13 +265,22 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
         return Base64.getDecoder().decode(new String(base64).getBytes(StandardCharsets.UTF_8));
     }
 
-    private String createActionIdentity(ApplicationCommandInteractionEvent event) {
-        return UUID.randomUUID().toString().replace("-", "")+"#"+event.getInteraction().getUser().getTag();
+    private String createActionIdentity(ApplicationCommandInteractionEvent event, String prefix) {
+        return prefix+"#"+UUID.randomUUID().toString().replace("-", "")+"#"+event.getInteraction().getUser().getTag();
     }
 
     private Mono<Void> handleStyleCommand(ChatInputInteractionEvent event, ImageStyle style){
+        String actionIdentity = createActionIdentity(event, "style");
         return imageStyleLocalService.setImageStyleForUser(event.getInteraction().getUser().getId(), style)
-                .then(Mono.fromRunnable(()->LOGGER.info("Default style of {} set to {}", event.getInteraction().getUser().getTag(), style)))
+                .onErrorResume(e->{
+                    LOGGER.error("Got error on action {}: {}", actionIdentity, ThrowableUtil.stackTraceToString(e));
+                    return event.reply(InteractionApplicationCommandCallbackSpec.builder()
+                            .content(commandErrorText(event))
+                            .ephemeral(true)
+                            .build())
+                            .then(Mono.empty());
+                })
+                .flatMap(v->Mono.fromRunnable(()->LOGGER.info("Default style of {} set to {}", event.getInteraction().getUser().getTag(), style)))
                 .then(event.reply(styleChangedResponseText(event, style))
                         .withEphemeral(true));
     }
@@ -272,21 +290,21 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                 "style", localization(event.getInteraction().getUserLocale(), style));
     }
 
-    private String generationQueuedResponseTest(ApplicationCommandInteractionEvent event, String description, ImageStyle style) {
+    private String generationQueuedResponseText(ApplicationCommandInteractionEvent event, String description, ImageStyle style) {
         String langKey = style.isUndefinedStyle() ? "message.paint.queued" : "message.paint.queued.styled";
         return localization(event.getInteraction().getUserLocale(), langKey,
                 "description", description,
                 "style", localization(event.getInteraction().getUserLocale(), style));
     }
 
-    private String generationStartedResponseTest(ApplicationCommandInteractionEvent event, String description, ImageStyle style) {
+    private String generationStartedResponseText(ApplicationCommandInteractionEvent event, String description, ImageStyle style) {
         String langKey = style.isUndefinedStyle() ? "message.paint.started" : "message.paint.started.styled";
         return localization(event.getInteraction().getUserLocale(), langKey,
                 "description", description,
                 "style", localization(event.getInteraction().getUserLocale(), style));
     }
 
-    private String generationFailedResponseTest(ApplicationCommandInteractionEvent event, String description, ImageStyle style) {
+    private String generationFailedResponseText(ApplicationCommandInteractionEvent event, String description, ImageStyle style) {
         return localization(event.getInteraction().getUserLocale(), "message.paint.error");
     }
 
@@ -298,6 +316,10 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
 
     private Color chooseColor(DiffusionGenerationResult result) {
         return Color.of(0x00ffffff & result.getHash().hashCode());
+    }
+
+    private String commandErrorText(ApplicationCommandInteractionEvent event) {
+        return localization(event.getInteraction().getUserLocale(), "message.command.error");
     }
 
 }
