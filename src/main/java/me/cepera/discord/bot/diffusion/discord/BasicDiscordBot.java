@@ -1,5 +1,6 @@
 package me.cepera.discord.bot.diffusion.discord;
 
+import java.net.URI;
 import java.util.Map;
 import java.util.Optional;
 
@@ -12,9 +13,12 @@ import discord4j.core.DiscordClient;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.interaction.ChatInputInteractionEvent;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
+import discord4j.core.object.entity.Attachment;
 import discord4j.discordjson.json.ApplicationCommandRequest;
 import me.cepera.discord.bot.diffusion.local.lang.LanguageLocalService;
-import me.cepera.discord.bot.diffusion.style.ImageStyle;
+import me.cepera.discord.bot.diffusion.local.lang.Translatable;
+import me.cepera.discord.bot.diffusion.remote.RemoteService;
+import me.cepera.discord.bot.diffusion.remote.SimpleRemoteService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -27,6 +31,8 @@ public abstract class BasicDiscordBot implements DiscordBot{
     private final Scheduler botActionsScheduler = Schedulers.newBoundedElastic(Schedulers.DEFAULT_BOUNDED_ELASTIC_SIZE, Integer.MAX_VALUE, "discord-bot-actions");
 
     protected final LanguageLocalService languageLocalService;
+
+    protected final RemoteService httpService = new SimpleRemoteService();
 
     public BasicDiscordBot(LanguageLocalService languageLocalService) {
         this.languageLocalService = languageLocalService;
@@ -97,12 +103,12 @@ public abstract class BasicDiscordBot implements DiscordBot{
     }
 
     @Nullable
-    protected Map<String, String> localization(ImageStyle style){
-        return localization("style."+style.getKey());
+    protected Map<String, String> localization(Translatable translatable){
+        return localization(translatable.getLangKey());
     }
 
-    protected String localization(String locale, ImageStyle style){
-        return localization(locale, "style."+style.getKey());
+    protected String localization(String locale, Translatable translatable){
+        return localization(locale, translatable.getLangKey());
     }
 
     protected String localization(String locale, String key, String... replacementPairs) {
@@ -112,6 +118,15 @@ public abstract class BasicDiscordBot implements DiscordBot{
         }
         String l = Optional.ofNullable(locale).filter(s->!s.isEmpty()).orElse("en-US");
         return langToValue.getOrDefault(l, langToValue.getOrDefault("en-US", key));
+    }
+
+    protected Mono<byte[]> getResource(String url){
+        return httpService.get(URI.create(url));
+    }
+
+    protected Mono<byte[]> getAttachmentContent(Attachment attachment) {
+        return Mono.fromSupplier(()->attachment)
+                .flatMap(att->getResource(att.getProxyUrl()));
     }
 
 }

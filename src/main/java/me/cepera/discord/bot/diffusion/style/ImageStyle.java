@@ -1,6 +1,8 @@
 package me.cepera.discord.bot.diffusion.style;
 
-public interface ImageStyle {
+import me.cepera.discord.bot.diffusion.local.lang.Translatable;
+
+public interface ImageStyle extends Translatable{
 
     int getId();
 
@@ -12,6 +14,11 @@ public interface ImageStyle {
 
     default boolean isUndefinedStyle() {
         return getStyleQuery().isEmpty();
+    }
+
+    @Override
+    default String getLangKey() {
+        return "style."+getKey();
     }
 
 }

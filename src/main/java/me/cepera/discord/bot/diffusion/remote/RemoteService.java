@@ -1,5 +1,6 @@
 package me.cepera.discord.bot.diffusion.remote;
 
+import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -41,18 +42,25 @@ public interface RemoteService {
     }
 
     default Mono<byte[]> postForm(URI uri, Map<String, String> formTextFields){
-        return postForm(uri, Collections.emptyMap(), formTextFields);
+        return postForm(uri, Collections.emptyMap(), formTextFields, Collections.emptyMap());
+    }
+
+    default Mono<byte[]> postForm(URI uri, Map<String, String> formTextFields, Map<String, FileData>  formFiles){
+        return postForm(uri, Collections.emptyMap(), formTextFields, formFiles);
     }
 
     default Mono<byte[]> postForm(URI uri, Consumer<HttpClientForm> formConsumer){
         return postForm(uri, Collections.emptyMap(), formConsumer);
     }
 
-    default Mono<byte[]> postForm(URI uri, Map<String, String> headersMap, Map<String, String> formTextFields){
+    default Mono<byte[]> postForm(URI uri, Map<String, String> headersMap, Map<String, String> formTextFields,
+            Map<String, FileData> formFiles){
         return postForm(uri, headersMap, form->{
             form.charset(StandardCharsets.UTF_8);
             form.multipart(true);
             formTextFields.forEach(form::attr);
+            formFiles.forEach((name, fileData)->form.file(name, fileData.getFileName(),
+                    new ByteArrayInputStream(fileData.getBytes()), fileData.getContentType()));
         });
     }
 

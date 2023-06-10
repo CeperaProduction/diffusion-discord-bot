@@ -1,9 +1,11 @@
 package me.cepera.discord.bot.diffusion.remote;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import org.apache.logging.log4j.LogManager;
@@ -40,11 +42,15 @@ public class DiffusionRemoteService implements RemoteService{
                 .doOnError(e->LOGGER.error("Error while checking queue", e));
     }
 
-    public Mono<byte[]> run(String queueType, Map<String, String> parameters){
+    public Mono<byte[]> run(String queueType, Map<String, String> parameters, @Nullable byte[] imageBytes){
         Map<String, String> formData = new LinkedHashMap<String, String>();
         formData.put("queueType", queueType);
         formData.putAll(parameters);
-        return postForm(URI.create(API_V1_TEXT2IMAGE_RUN), extraFormHeaders, formData)
+        Map<String, FileData> files = new HashMap<String, FileData>();
+        if(imageBytes != null && imageBytes.length != 0) {
+            files.put("image", new FileData("uploadedFile", "image/png", imageBytes));
+        }
+        return postForm(URI.create(API_V1_TEXT2IMAGE_RUN), extraFormHeaders, formData, files)
                 .doOnError(e->LOGGER.error("Error while running new painting procedure", e));
     }
 

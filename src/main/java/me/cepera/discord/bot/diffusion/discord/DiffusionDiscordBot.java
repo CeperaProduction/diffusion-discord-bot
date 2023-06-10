@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 
 import discord4j.core.event.domain.interaction.ApplicationCommandInteractionEvent;
 import discord4j.core.event.domain.interaction.ChatInputInteractionEvent;
+import discord4j.core.object.entity.Attachment;
 import discord4j.core.spec.EmbedCreateSpec;
 import discord4j.core.spec.InteractionApplicationCommandCallbackSpec;
 import discord4j.core.spec.InteractionFollowupCreateSpec;
@@ -31,8 +33,10 @@ import discord4j.discordjson.json.ApplicationCommandOptionData;
 import discord4j.discordjson.json.ApplicationCommandRequest;
 import discord4j.rest.util.Color;
 import io.netty.util.internal.ThrowableUtil;
+import me.cepera.discord.bot.diffusion.enums.CanvasExpandingDirection;
 import me.cepera.discord.bot.diffusion.enums.DefaultDiffusionImageStyle;
 import me.cepera.discord.bot.diffusion.enums.QueueStatus;
+import me.cepera.discord.bot.diffusion.image.ImageTransformUtils;
 import me.cepera.discord.bot.diffusion.local.DiffusionLocalService;
 import me.cepera.discord.bot.diffusion.local.ImageStyleLocalService;
 import me.cepera.discord.bot.diffusion.local.lang.LanguageLocalService;
@@ -53,6 +57,8 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
 
     public static final String COMMAND_OPTION_DESCRIPTION = "description";
     public static final String COMMAND_OPTION_STYLE = "style";
+    public static final String COMMAND_OPTION_IMAGE = "image";
+    public static final String COMMAND_OPTION_DIRECTION = "direction";
 
     private final ImageStyleRegistry imageStyleRegistry;
 
@@ -97,6 +103,29 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                                            .name(localization(null, style))
                                            .nameLocalizationsOrNull(localization(style))
                                            .value(style.getKey().replace('_', ' '))
+                                           .build())
+                                   .collect(Collectors.toList()))
+                           .build())
+                   .addOption(ApplicationCommandOptionData.builder()
+                           .name(COMMAND_OPTION_IMAGE)
+                           .nameLocalizationsOrNull(localization("command.paint.option.image"))
+                           .description(localization(null, "command.paint.option.image.description"))
+                           .descriptionLocalizationsOrNull(localization("command.paint.option.image.description"))
+                           .type(11)
+                           .required(false)
+                           .build())
+                   .addOption(ApplicationCommandOptionData.builder()
+                           .name(COMMAND_OPTION_DIRECTION)
+                           .nameLocalizationsOrNull(localization("command.paint.option.direction"))
+                           .description(localization(null, "command.paint.option.direction.description"))
+                           .descriptionLocalizationsOrNull(localization("command.paint.option.direction.description"))
+                           .type(3)
+                           .required(false)
+                           .addAllChoices(Arrays.stream(CanvasExpandingDirection.values())
+                                   .map(expand->ApplicationCommandOptionChoiceData.builder()
+                                           .name(localization(null, expand))
+                                           .nameLocalizationsOrNull(localization(expand))
+                                           .value(expand.getKey())
                                            .build())
                                    .collect(Collectors.toList()))
                            .build())
@@ -154,9 +183,19 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                     .flatMap(option->option.getValue())
                     .flatMap(value->imageStyleRegistry.getStyleByName(value.asString()));
 
+            Attachment attachment = event.getOption(COMMAND_OPTION_IMAGE)
+                .flatMap(option->option.getValue())
+                .map(value->value.asAttachment())
+                .orElse(null);
+
+            CanvasExpandingDirection expandingDirection = event.getOption(COMMAND_OPTION_DIRECTION)
+                    .flatMap(option->option.getValue())
+                    .map(value->CanvasExpandingDirection.fromName(value.asString()))
+                    .orElse(CanvasExpandingDirection.ALL);
+
             return Mono.justOrEmpty(optStyle)
                     .switchIfEmpty(imageStyleLocalService.getImageStyleForUser(event.getInteraction().getUser().getId()))
-                    .flatMap(style->handlePaintCommand(event, description, style));
+                    .flatMap(style->handlePaintCommand(event, description, style, attachment, expandingDirection));
         }
         case COMMAND_STYLE:
         {
@@ -173,9 +212,26 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
         }
     }
 
-    private Mono<Void> handlePaintCommand(ApplicationCommandInteractionEvent event, String description, ImageStyle style){
+    private boolean isImage(String contentType) {
+        return contentType.equals("image/png") || contentType.equals("image/jpg") || contentType.equals("image/jpeg");
+    }
+
+    private Mono<Void> handlePaintCommand(ApplicationCommandInteractionEvent event, String description, ImageStyle style,
+            Attachment attachment, CanvasExpandingDirection expanding){
         String actionIdentity = createActionIdentity(event, "paint");
         AtomicBoolean started = new AtomicBoolean();
+
+        if(attachment != null) {
+            String contentType = attachment.getContentType().orElse("");
+            LOGGER.info("Received attachment with type {} for action {}", contentType, actionIdentity);
+            if(!isImage(contentType)) {
+                return event.reply(InteractionApplicationCommandCallbackSpec.builder()
+                        .content(wrongAttachmentResponseText(event))
+                        .ephemeral(true)
+                        .build());
+            }
+        }
+
         return Mono.defer(()->event.reply(InteractionApplicationCommandCallbackSpec.builder()
                         .ephemeral(true)
                         .content(generationQueuedResponseText(event, description, style))
@@ -190,7 +246,10 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                             LOGGER.error("Error on pre-generation queue check. Action: {} Error: {}", actionIdentity, ThrowableUtil.stackTraceToString(e));
                             return Mono.empty();
                         }))
-                .then(diffusionService.runGeneration(description, style, 1))
+                .then(getAttachmentContent(attachment)
+                        .map(sourceImageBytes->ImageTransformUtils.transformImageByDefault(sourceImageBytes, expanding))
+                        .switchIfEmpty(Mono.fromSupplier(()->new byte[0])))
+                .flatMap(sourceImageBytes->diffusionService.runGeneration(description, style, 1, sourceImageBytes))
                 .flatMap(pocket->Mono.defer(()->diffusionService.getStatus(pocket.getPocketId())
                         .doOnNext(queue->LOGGER.info("Continue painting for action {}. Current queue state is {}", actionIdentity, queue))
                         .flatMap(status->Mono.just(status)
@@ -204,7 +263,7 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                         .switchIfEmpty(Mono.error(()->new IllegalStateException("Picture painting process ended with bad status.")))
                         .then(Mono.from(diffusionService.getGenerationResults(pocket.getPocketId()))))
                 .doOnNext(result->LOGGER.info("Painting action {} ended. Hash: {} Results count: {}", actionIdentity, result.getHash(), result.getResponse().size()))
-                .flatMap(result->sendImages(event, description, style, result))
+                .flatMap(result->sendImages(event, description, style, attachment, expanding, result))
                 .then(Mono.<Void>fromRunnable(()->LOGGER.info("Result of painting action {} sended.", actionIdentity)))
                 .onErrorResume(e->{
                     LOGGER.error("Got error on action {}: {}", actionIdentity, ThrowableUtil.stackTraceToString(e));
@@ -230,7 +289,8 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                         .build()));
     }
 
-    private Mono<Void> sendImages(ApplicationCommandInteractionEvent event, String description, ImageStyle style, DiffusionGenerationResult result) {
+    private Mono<Void> sendImages(ApplicationCommandInteractionEvent event, String description, ImageStyle style,
+            Attachment sourceImageAttachment, CanvasExpandingDirection expandingDirection, DiffusionGenerationResult result) {
         List<EmbedCreateSpec> embededs = new ArrayList<>();
         List<MessageCreateFields.File> files = new ArrayList<MessageCreateFields.File>();
         int counter = 0;
@@ -249,6 +309,12 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
             if(!style.isUndefinedStyle()) {
                 embededBuilder.addField(localization(event.getInteraction().getUserLocale(), "element.style"),
                         localization(event.getInteraction().getUserLocale(), style), true);
+            }
+
+            if(sourceImageAttachment != null) {
+                embededBuilder.thumbnail(sourceImageAttachment.getProxyUrl());
+                embededBuilder.addField(localization(event.getInteraction().getUserLocale(), "element.direction"),
+                        localization(event.getInteraction().getUserLocale(), expandingDirection), true);
             }
 
             MessageCreateFields.File file = MessageCreateFields.File.of(imageName,
@@ -326,6 +392,10 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
 
     private String generationFailedResponseText(ApplicationCommandInteractionEvent event, String description, ImageStyle style) {
         return localization(event.getInteraction().getUserLocale(), "message.paint.error");
+    }
+
+    private String wrongAttachmentResponseText(ApplicationCommandInteractionEvent event) {
+        return localization(event.getInteraction().getUserLocale(), "message.paint.wrong_attachment");
     }
 
     private String queueOutput(ApplicationCommandInteractionEvent event, DiffusionQueue queue) {

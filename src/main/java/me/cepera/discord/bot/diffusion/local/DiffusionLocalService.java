@@ -3,6 +3,7 @@ package me.cepera.discord.bot.diffusion.local;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import org.apache.logging.log4j.LogManager;
@@ -60,14 +61,22 @@ public class DiffusionLocalService {
                 .map(this::queueStatusFromString);
     }
 
-    public Mono<DiffusionPocket> runGeneration(String query, ImageStyle style, int preset){
+    public Mono<DiffusionPocket> runGeneration(String query, ImageStyle style, double preset, @Nullable byte[] imageBytes){
         Map<String, String> params = new LinkedHashMap<String, String>();
         params.put("query", query);
-        params.put("preset", Integer.toString(preset));
+        params.put("preset", presetToString(preset));
         params.put("style", style.getStyleQuery());
-        return remoteService.run("generate", params)
+        return remoteService.run("generate", params, imageBytes)
                 .flatMap(runResponseConverter::read)
                 .map(this::fetchResult);
+    }
+
+    private String presetToString(double preset) {
+        if(preset == (long) preset) {
+            return String.format("%d",(long)preset);
+        }else {
+            return String.format("%s",preset);
+        }
     }
 
     public Flux<DiffusionGenerationResult> getGenerationResults(String pocketId){

@@ -3,6 +3,9 @@ package me.cepera.discord.bot.diffusion.local;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,8 +18,10 @@ import org.junit.jupiter.api.Test;
 
 import me.cepera.discord.bot.diffusion.converter.BodyConverter;
 import me.cepera.discord.bot.diffusion.converter.GenericJsonBodyConverter;
+import me.cepera.discord.bot.diffusion.enums.CanvasExpandingDirection;
 import me.cepera.discord.bot.diffusion.enums.DefaultDiffusionImageStyle;
 import me.cepera.discord.bot.diffusion.enums.QueueStatus;
+import me.cepera.discord.bot.diffusion.image.ImageTransformUtils;
 import me.cepera.discord.bot.diffusion.remote.DiffusionRemoteService;
 import me.cepera.discord.bot.diffusion.remote.dto.DiffusionEntitiesResponse;
 import me.cepera.discord.bot.diffusion.remote.dto.DiffusionGenerationResult;
@@ -66,7 +71,7 @@ public class DiffusionLocalServiceTest {
         ImageStyle style = DefaultDiffusionImageStyle.ANIME;
         String description = "Электропоезд ласточка";
 
-        DiffusionPocket pocket = service.runGeneration(description, style, 1).block();
+        DiffusionPocket pocket = service.runGeneration(description, style, 1, null).block();
 
         System.err.println("pocket: "+pocket);
 
@@ -88,7 +93,53 @@ public class DiffusionLocalServiceTest {
 
         assertNotNull(generationResult, "Generation result was not received");
 
-        saveImage(generationResult.getResponse().get(0), "test.png");
+        saveImage(generationResult.getResponse().get(0), "test_generate.png");
+
+    }
+
+    @Test
+    void testImageRepainting() throws InterruptedException, IOException {
+
+        ImageStyle style = DefaultDiffusionImageStyle.ANIME;
+        String description = "Красный трактор";
+        byte[] inputImageBytes;
+        try(InputStream is = DiffusionLocalServiceTest.class.getClassLoader().getResourceAsStream("test_image.png")){
+            byte[] buffer = new byte[4096];
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            int readen = 0;
+            while((readen = is.read(buffer, 0, buffer.length)) != -1) {
+                out.write(buffer, 0, readen);
+            }
+            inputImageBytes = out.toByteArray();
+        }
+
+        inputImageBytes = ImageTransformUtils.transformImageByDefault(inputImageBytes, CanvasExpandingDirection.ALL);
+
+        System.err.println("input file size: "+inputImageBytes.length);
+
+        DiffusionPocket pocket = service.runGeneration(description, style, 0, inputImageBytes).block();
+
+        System.err.println("pocket: "+pocket);
+
+        assertNotNull(pocket, "Pocket was not received");
+
+        QueueStatus status = QueueStatus.PROCESSING;
+
+        for(int i = 0; !status.isTerminalStatus() && i < 120; ++i) {
+            status = service.getStatus(pocket.getPocketId()).block();
+            System.err.println("i: "+i+" status: "+status);
+            Thread.sleep(1000L);
+        }
+
+        assertEquals(QueueStatus.SUCCESS, status, "Image generation process ended with bad status");
+
+        DiffusionGenerationResult generationResult = service.getGenerationResults(pocket.getPocketId()).blockFirst();
+
+        System.err.println("generated: "+generationResult);
+
+        assertNotNull(generationResult, "Generation result was not received");
+
+        saveImage(generationResult.getResponse().get(0), "test_repaint.png");
 
     }
 
