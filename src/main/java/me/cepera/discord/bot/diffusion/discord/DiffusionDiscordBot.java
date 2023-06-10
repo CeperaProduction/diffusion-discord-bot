@@ -18,6 +18,8 @@ import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.fasterxml.jackson.core.JsonParseException;
+
 import discord4j.core.event.domain.interaction.ApplicationCommandInteractionEvent;
 import discord4j.core.event.domain.interaction.ChatInputInteractionEvent;
 import discord4j.core.spec.EmbedCreateSpec;
@@ -181,6 +183,10 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                 .then(diffusionService.checkQueue()
                         .doOnNext(queue->LOGGER.info("Start painting for action {}. Current queue state is {}", actionIdentity, queue))
                         .onErrorResume(e->{
+                            if(e instanceof JsonParseException && e.getMessage().contains("<!doctype html>")) {
+                                LOGGER.warn("Look's like something is wrong with remote checkQueue method. Remote service returned HTML document. Action: {}", actionIdentity);
+                                return Mono.empty();
+                            }
                             LOGGER.error("Error on pre-generation queue check. Action: {} Error: {}", actionIdentity, ThrowableUtil.stackTraceToString(e));
                             return Mono.empty();
                         }))
@@ -238,7 +244,7 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                     .image("attachment://"+imageName)
                     .color(chooseColor(result))
                     .timestamp(Instant.ofEpochMilli(result.getUpdatedAt().getTime()))
-                    .footer(event.getInteraction().getUser().getTag(), event.getInteraction().getUser().getAvatarUrl());
+                    .footer(getAuthorBlock(event), event.getInteraction().getUser().getAvatarUrl());
 
             if(!style.isUndefinedStyle()) {
                 embededBuilder.addField(localization(event.getInteraction().getUserLocale(), "element.style"),
@@ -260,6 +266,20 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                     .build())
                 .then();
     }
+
+    private String getAuthorBlock(ApplicationCommandInteractionEvent event) {
+        return event.getInteraction().getMember()
+                .map(member->member.getDisplayName())
+                .orElseGet(()->event.getInteraction().getUser().getUsername());
+    }
+
+    /*
+    private String prepareUserTag(String tag) {
+        if(tag.endsWith("#0")) {
+            return tag.substring(0, tag.length()-2);
+        }
+        return tag;
+    }*/
 
     private byte[] base64ToBytes(String base64) {
         return Base64.getDecoder().decode(new String(base64).getBytes(StandardCharsets.UTF_8));
