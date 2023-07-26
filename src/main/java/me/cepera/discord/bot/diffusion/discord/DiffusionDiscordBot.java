@@ -1,12 +1,10 @@
 package me.cepera.discord.bot.diffusion.discord;
 
 import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,8 +17,6 @@ import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import discord4j.core.event.domain.interaction.ApplicationCommandInteractionEvent;
 import discord4j.core.event.domain.interaction.ChatInputInteractionEvent;
 import discord4j.core.object.entity.Attachment;
@@ -31,17 +27,17 @@ import discord4j.core.spec.MessageCreateFields;
 import discord4j.discordjson.json.ApplicationCommandOptionChoiceData;
 import discord4j.discordjson.json.ApplicationCommandOptionData;
 import discord4j.discordjson.json.ApplicationCommandRequest;
+import discord4j.discordjson.possible.Possible;
 import discord4j.rest.util.Color;
 import io.netty.util.internal.ThrowableUtil;
 import me.cepera.discord.bot.diffusion.enums.CanvasExpandingDirection;
 import me.cepera.discord.bot.diffusion.enums.DefaultDiffusionImageStyle;
-import me.cepera.discord.bot.diffusion.enums.QueueStatus;
+import me.cepera.discord.bot.diffusion.enums.ProcessStatus;
 import me.cepera.discord.bot.diffusion.image.ImageTransformUtils;
 import me.cepera.discord.bot.diffusion.local.DiffusionLocalService;
 import me.cepera.discord.bot.diffusion.local.ImageStyleLocalService;
 import me.cepera.discord.bot.diffusion.local.lang.LanguageLocalService;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionGenerationResult;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionQueue;
+import me.cepera.discord.bot.diffusion.model.DiffusionPaintingState;
 import me.cepera.discord.bot.diffusion.style.ImageStyle;
 import me.cepera.discord.bot.diffusion.style.ImageStyleRegistry;
 import reactor.core.publisher.Flux;
@@ -53,7 +49,6 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
 
     public static final String COMMAND_PAINT = "paint";
     public static final String COMMAND_STYLE = "style";
-    public static final String COMMAND_QUEUE = "queue";
 
     public static final String COMMAND_OPTION_DESCRIPTION = "description";
     public static final String COMMAND_OPTION_STYLE = "style";
@@ -153,13 +148,6 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                            .build())
                    .build());
 
-           sink.next(ApplicationCommandRequest.builder()
-                   .name(COMMAND_QUEUE)
-                   .nameLocalizationsOrNull(localization("command.queue"))
-                   .description(localization(null, "command.queue.description"))
-                   .descriptionLocalizationsOrNull(localization("command.queue.description"))
-                   .build());
-
            sink.complete();
         });
     }
@@ -206,8 +194,6 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
 
             return handleStyleCommand(event, style);
         }
-        case COMMAND_QUEUE:
-            return handleQueueCommand(event);
         default: return super.handleChatInputInteractionEvent(event);
         }
     }
@@ -232,37 +218,36 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
             }
         }
 
+        Duration pollingInterval = Duration.ofSeconds(3);
+        int maxPollings = 150;
+
         return Mono.defer(()->event.reply(InteractionApplicationCommandCallbackSpec.builder()
                         .ephemeral(true)
                         .content(generationQueuedResponseText(event, description, style))
                         .build()))
-                .then(diffusionService.checkQueue()
-                        .doOnNext(queue->LOGGER.info("Start painting for action {}. Current queue state is {}", actionIdentity, queue))
-                        .onErrorResume(e->{
-                            if(e instanceof JsonParseException && e.getMessage().contains("<!doctype html>")) {
-                                LOGGER.warn("Look's like something is wrong with remote checkQueue method. Remote service returned HTML document. Action: {}", actionIdentity);
-                                return Mono.empty();
-                            }
-                            LOGGER.error("Error on pre-generation queue check. Action: {} Error: {}", actionIdentity, ThrowableUtil.stackTraceToString(e));
-                            return Mono.empty();
-                        }))
                 .then(getAttachmentContent(attachment)
-                        .map(sourceImageBytes->ImageTransformUtils.transformImageByDefault(sourceImageBytes, expanding))
+                        .map(sourceImageBytes->ImageTransformUtils.transformImageToSquare(sourceImageBytes, 640, 1024, expanding))
                         .switchIfEmpty(Mono.fromSupplier(()->new byte[0])))
-                .flatMap(sourceImageBytes->diffusionService.runGeneration(description, style, 1, sourceImageBytes))
-                .flatMap(pocket->Mono.defer(()->diffusionService.getStatus(pocket.getPocketId())
-                        .doOnNext(queue->LOGGER.info("Continue painting for action {}. Current queue state is {}", actionIdentity, queue))
-                        .flatMap(status->Mono.just(status)
-                                .filter(s->s != QueueStatus.INITIAL && !started.getAndSet(true))
-                                .flatMap(s->event.editReply(generationStartedResponseText(event, description, style)))
-                                .then(Mono.just(status)))
-                        .filter(QueueStatus::isTerminalStatus)
-                        .repeatWhenEmpty(flux->flux.filter(counter->counter < 600L).delayElements(Duration.ofSeconds(2))))
-                        .switchIfEmpty(Mono.error(()->new TimeoutException("The picture is painting for longer than 120 seconds. Stop polling.")))
-                        .filter(status->status == QueueStatus.SUCCESS)
-                        .switchIfEmpty(Mono.error(()->new IllegalStateException("Picture painting process ended with bad status.")))
-                        .then(Mono.from(diffusionService.getGenerationResults(pocket.getPocketId()))))
-                .doOnNext(result->LOGGER.info("Painting action {} ended. Hash: {} Results count: {}", actionIdentity, result.getHash(), result.getResponse().size()))
+                .flatMap(sourceImageBytes->diffusionService.runGeneration(description, style, 1024, 1024, sourceImageBytes))
+                .flatMap(initialState->Mono.just(initialState)
+                        .doOnNext(state->LOGGER.info("Painting for action {} started. Initial state: {}", actionIdentity, state))
+                        .filter(state->state.getStatus().isTerminalStatus())
+                        .switchIfEmpty(Mono.delay(pollingInterval).then(Mono.defer(()->diffusionService.checkGeneration(initialState.getUuid())
+                                    .doOnNext(state->LOGGER.info("Continue painting for action {}. Current process status: {}", actionIdentity, state.getStatus()))
+                                    .flatMap(state->Mono.fromSupplier(state::getStatus)
+                                            .flatMap(status->Mono.just(status)
+                                                    .filter(s->s != ProcessStatus.INITIAL && !started.getAndSet(true))
+                                                    .flatMap(s->event.editReply(generationStartedResponseText(event, description, style)))
+                                                    .then(Mono.just(status)))
+                                            .filter(ProcessStatus::isTerminalStatus)
+                                            .map(status->state)
+                                    ))
+                                .repeatWhenEmpty(flux->flux.filter(counter->counter < maxPollings).delayElements(pollingInterval))
+                                .switchIfEmpty(Mono.error(()->new TimeoutException("The picture is painting for too long time. Stop polling."))))
+                            ))
+                .doOnNext(result->LOGGER.info("Painting action {} ended. Final painting state: {}", actionIdentity, result))
+                .filter(jobState->jobState.getStatus() == ProcessStatus.DONE)
+                .switchIfEmpty(Mono.error(()->new IllegalStateException("Picture painting process ended with bad status.")))
                 .flatMap(result->sendImages(event, description, style, attachment, expanding, result))
                 .then(Mono.<Void>fromRunnable(()->LOGGER.info("Result of painting action {} sended.", actionIdentity)))
                 .onErrorResume(e->{
@@ -272,29 +257,12 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                 });
     }
 
-    private Mono<Void> handleQueueCommand(ApplicationCommandInteractionEvent event){
-        String actionIdentity = createActionIdentity(event, "queue");
-        return diffusionService.checkQueue()
-                .onErrorResume(e->{
-                    LOGGER.error("Got error on action {}: {}", actionIdentity, ThrowableUtil.stackTraceToString(e));
-                    return event.reply(InteractionApplicationCommandCallbackSpec.builder()
-                            .content(commandErrorText(event))
-                            .ephemeral(true)
-                            .build())
-                            .then(Mono.empty());
-                })
-                .flatMap(queue->event.reply(InteractionApplicationCommandCallbackSpec.builder()
-                        .content(queueOutput(event, queue))
-                        .ephemeral(true)
-                        .build()));
-    }
-
     private Mono<Void> sendImages(ApplicationCommandInteractionEvent event, String description, ImageStyle style,
-            Attachment sourceImageAttachment, CanvasExpandingDirection expandingDirection, DiffusionGenerationResult result) {
+            Attachment sourceImageAttachment, CanvasExpandingDirection expandingDirection, DiffusionPaintingState result) {
         List<EmbedCreateSpec> embededs = new ArrayList<>();
         List<MessageCreateFields.File> files = new ArrayList<MessageCreateFields.File>();
         int counter = 0;
-        for(String base64ImageContent : result.getResponse()) {
+        for(byte[] imageBytes : result.getImages()) {
 
             String imageName = "painting"+(++counter)+".png";
 
@@ -303,7 +271,7 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
                     .description(description)
                     .image("attachment://"+imageName)
                     .color(chooseColor(result))
-                    .timestamp(Instant.ofEpochMilli(result.getUpdatedAt().getTime()))
+                    .timestamp(Instant.ofEpochMilli(System.currentTimeMillis()))
                     .footer(getAuthorBlock(event), event.getInteraction().getUser().getAvatarUrl());
 
             if(!style.isUndefinedStyle()) {
@@ -318,7 +286,7 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
             }
 
             MessageCreateFields.File file = MessageCreateFields.File.of(imageName,
-                    new ByteArrayInputStream(base64ToBytes(base64ImageContent)));
+                    new ByteArrayInputStream(ImageTransformUtils.transformImageMaxDimension(imageBytes, 1024)));
 
             embededs.add(embededBuilder.build());
             files.add(file);
@@ -347,9 +315,7 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
         return tag;
     }*/
 
-    private byte[] base64ToBytes(String base64) {
-        return Base64.getDecoder().decode(new String(base64).getBytes(StandardCharsets.UTF_8));
-    }
+
 
     private String createActionIdentity(ApplicationCommandInteractionEvent event, String prefix) {
         return prefix+"#"+UUID.randomUUID().toString().replace("-", "")+"#"+event.getInteraction().getUser().getTag();
@@ -398,14 +364,11 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
         return localization(event.getInteraction().getUserLocale(), "message.paint.wrong_attachment");
     }
 
-    private String queueOutput(ApplicationCommandInteractionEvent event, DiffusionQueue queue) {
-        return localization(event.getInteraction().getUserLocale(), "message.queue.status",
-                "current", Integer.toString(queue.getCount()),
-                "day", Integer.toString(queue.getDayCount()));
-    }
-
-    private Color chooseColor(DiffusionGenerationResult result) {
-        return Color.of(0x00ffffff & result.getHash().hashCode());
+    private Possible<Color> chooseColor(DiffusionPaintingState result) {
+        if(result.isCensored() || result.getImages().isEmpty()) {
+            return Possible.absent();
+        }
+        return Possible.of(Color.of(0x00ffffff & ImageTransformUtils.mediumARGB(result.getImages().get(0))));
     }
 
     private String commandErrorText(ApplicationCommandInteractionEvent event) {

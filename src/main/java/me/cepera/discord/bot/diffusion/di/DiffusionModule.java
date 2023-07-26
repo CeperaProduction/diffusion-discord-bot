@@ -6,8 +6,7 @@ import dagger.Module;
 import dagger.Provides;
 import me.cepera.discord.bot.diffusion.converter.BodyConverter;
 import me.cepera.discord.bot.diffusion.converter.GenericJsonBodyConverter;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionEntitiesResponse;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionQueueResponse;
+import me.cepera.discord.bot.diffusion.remote.dto.DiffusionRunParams;
 import me.cepera.discord.bot.diffusion.remote.dto.DiffusionRunResponse;
 import me.cepera.discord.bot.diffusion.remote.dto.DiffusionStatusResponse;
 import me.cepera.discord.bot.diffusion.style.ImageStyleRegistry;
@@ -27,18 +26,13 @@ public class DiffusionModule {
     }
 
     @Provides
-    BodyConverter<DiffusionQueueResponse> diffusionQueueResponseBodyConverter(){
-        return new GenericJsonBodyConverter<>(DiffusionQueueResponse.class);
-    }
-
-    @Provides
-    BodyConverter<DiffusionEntitiesResponse> diffusionEntitiesResponseBodyConverter(){
-        return new GenericJsonBodyConverter<>(DiffusionEntitiesResponse.class);
-    }
-
-    @Provides
     BodyConverter<DiffusionRunResponse> diffusionRunResponseBodyConverter(){
         return new GenericJsonBodyConverter<>(DiffusionRunResponse.class);
+    }
+
+    @Provides
+    BodyConverter<DiffusionRunParams> diffusionRunParamsConverter(){
+        return new GenericJsonBodyConverter<DiffusionRunParams>(DiffusionRunParams.class);
     }
 
 }

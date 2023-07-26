@@ -7,10 +7,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Base64;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
@@ -20,14 +18,11 @@ import me.cepera.discord.bot.diffusion.converter.BodyConverter;
 import me.cepera.discord.bot.diffusion.converter.GenericJsonBodyConverter;
 import me.cepera.discord.bot.diffusion.enums.CanvasExpandingDirection;
 import me.cepera.discord.bot.diffusion.enums.DefaultDiffusionImageStyle;
-import me.cepera.discord.bot.diffusion.enums.QueueStatus;
+import me.cepera.discord.bot.diffusion.enums.ProcessStatus;
 import me.cepera.discord.bot.diffusion.image.ImageTransformUtils;
+import me.cepera.discord.bot.diffusion.model.DiffusionPaintingState;
 import me.cepera.discord.bot.diffusion.remote.DiffusionRemoteService;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionEntitiesResponse;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionGenerationResult;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionPocket;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionQueue;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionQueueResponse;
+import me.cepera.discord.bot.diffusion.remote.dto.DiffusionRunParams;
 import me.cepera.discord.bot.diffusion.remote.dto.DiffusionRunResponse;
 import me.cepera.discord.bot.diffusion.remote.dto.DiffusionStatusResponse;
 import me.cepera.discord.bot.diffusion.style.ImageStyle;
@@ -42,27 +37,15 @@ public class DiffusionLocalServiceTest {
 
         DiffusionRemoteService remoteService = new DiffusionRemoteService();
 
-        BodyConverter<DiffusionQueueResponse> queueResponseConverter = new GenericJsonBodyConverter<>(DiffusionQueueResponse.class);
+        BodyConverter<DiffusionRunParams> runParamsConverter = new GenericJsonBodyConverter<DiffusionRunParams>(DiffusionRunParams.class);
         BodyConverter<DiffusionRunResponse> runResponseConverter = new GenericJsonBodyConverter<>(DiffusionRunResponse.class);
         BodyConverter<DiffusionStatusResponse> statusResponseConverter = new GenericJsonBodyConverter<>(DiffusionStatusResponse.class);
-        BodyConverter<DiffusionEntitiesResponse> entitiesResponseConverter = new GenericJsonBodyConverter<>(DiffusionEntitiesResponse.class);
 
         service = new DiffusionLocalService(remoteService,
-                queueResponseConverter,
+                runParamsConverter,
                 runResponseConverter,
-                statusResponseConverter,
-                entitiesResponseConverter);
+                statusResponseConverter);
 
-    }
-
-    @Test
-    void testQueueCheck() {
-
-        DiffusionQueue queue = service.checkQueue().block();
-
-        System.err.println("queue: "+queue);
-
-        assertNotNull(queue, "Queue was not received");
     }
 
     @Test
@@ -71,29 +54,24 @@ public class DiffusionLocalServiceTest {
         ImageStyle style = DefaultDiffusionImageStyle.ANIME;
         String description = "Электропоезд ласточка";
 
-        DiffusionPocket pocket = service.runGeneration(description, style, 1, null).block();
+        DiffusionPaintingState painting = service.runGeneration(description, style, 1024, 1024, null).block();
 
-        System.err.println("pocket: "+pocket);
+        System.err.println("painting: "+painting);
 
-        assertNotNull(pocket, "Pocket was not received");
+        assertNotNull(painting, "Painting was not received");
 
-        QueueStatus status = QueueStatus.PROCESSING;
-
-        for(int i = 0; !status.isTerminalStatus() && i < 120; ++i) {
-            status = service.getStatus(pocket.getPocketId()).block();
-            System.err.println("i: "+i+" status: "+status);
+        for(int i = 0; !painting.getStatus().isTerminalStatus() && i < 120; ++i) {
+            painting = service.checkGeneration(painting.getUuid()).block();
+            assertNotNull(painting, "Painting was not received");
+            System.err.println("i: "+i+" painting: "+painting);
             Thread.sleep(1000L);
         }
 
-        assertEquals(QueueStatus.SUCCESS, status, "Image generation process ended with bad status");
+        assertEquals(ProcessStatus.DONE, painting.getStatus(), "Image generation process ended with bad status");
 
-        DiffusionGenerationResult generationResult = service.getGenerationResults(pocket.getPocketId()).blockFirst();
+        System.err.println("generated: "+painting);
 
-        System.err.println("generated: "+generationResult);
-
-        assertNotNull(generationResult, "Generation result was not received");
-
-        saveImage(generationResult.getResponse().get(0), "test_generate.png");
+        saveImage(painting.getImages().get(0), "test_generate.png");
 
     }
 
@@ -113,40 +91,34 @@ public class DiffusionLocalServiceTest {
             inputImageBytes = out.toByteArray();
         }
 
-        inputImageBytes = ImageTransformUtils.transformImageByDefault(inputImageBytes, CanvasExpandingDirection.ALL);
+        inputImageBytes = ImageTransformUtils.transformImageToSquare(inputImageBytes, 512, 768, CanvasExpandingDirection.ALL);
 
         System.err.println("input file size: "+inputImageBytes.length);
 
-        DiffusionPocket pocket = service.runGeneration(description, style, 0, inputImageBytes).block();
+        DiffusionPaintingState painting = service.runGeneration(description, style, 1024, 1024, inputImageBytes).block();
 
-        System.err.println("pocket: "+pocket);
+        System.err.println("painting: "+painting);
 
-        assertNotNull(pocket, "Pocket was not received");
+        assertNotNull(painting, "Painting was not received");
 
-        QueueStatus status = QueueStatus.PROCESSING;
-
-        for(int i = 0; !status.isTerminalStatus() && i < 120; ++i) {
-            status = service.getStatus(pocket.getPocketId()).block();
-            System.err.println("i: "+i+" status: "+status);
+        for(int i = 0; !painting.getStatus().isTerminalStatus() && i < 120; ++i) {
+            painting = service.checkGeneration(painting.getUuid()).block();
+            assertNotNull(painting, "Painting was not received");
+            System.err.println("i: "+i+" painting: "+painting);
             Thread.sleep(1000L);
         }
 
-        assertEquals(QueueStatus.SUCCESS, status, "Image generation process ended with bad status");
+        assertEquals(ProcessStatus.DONE, painting.getStatus(), "Image generation process ended with bad status");
 
-        DiffusionGenerationResult generationResult = service.getGenerationResults(pocket.getPocketId()).blockFirst();
+        System.err.println("generated: "+painting);
 
-        System.err.println("generated: "+generationResult);
-
-        assertNotNull(generationResult, "Generation result was not received");
-
-        saveImage(generationResult.getResponse().get(0), "test_repaint.png");
+        saveImage(painting.getImages().get(0), "test_repaint.png");
 
     }
 
-    private void saveImage(String base64Content, String name) {
+    private void saveImage(byte[] imageBytes, String name) {
         try (OutputStream output = Files.newOutputStream(Paths.get("target", name))){
-            byte[] bytes = Base64.getDecoder().decode(new String(base64Content).getBytes(StandardCharsets.UTF_8));
-            output.write(bytes);
+            output.write(imageBytes);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -1,18 +1,20 @@
-package me.cepera.discord.bot.diffusion.remote.dto;
+package me.cepera.discord.bot.diffusion.model;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class DiffusionStatusResponse {
+import me.cepera.discord.bot.diffusion.enums.ProcessStatus;
+
+public class DiffusionPaintingState {
 
     private String uuid;
 
-    private String status;
+    private ProcessStatus status;
 
     private String errorDescription;
 
-    private List<String> images = new ArrayList<>();
+    private List<byte[]> images = new ArrayList<>();
 
     private boolean censored;
 
@@ -24,11 +26,11 @@ public class DiffusionStatusResponse {
         this.uuid = uuid;
     }
 
-    public String getStatus() {
+    public ProcessStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(ProcessStatus status) {
         this.status = status;
     }
 
@@ -40,11 +42,11 @@ public class DiffusionStatusResponse {
         this.errorDescription = errorDescription;
     }
 
-    public List<String> getImages() {
+    public List<byte[]> getImages() {
         return images;
     }
 
-    public void setImages(List<String> images) {
+    public void setImages(List<byte[]> images) {
         this.images = images;
     }
 
@@ -69,16 +71,15 @@ public class DiffusionStatusResponse {
             return false;
         if (getClass() != obj.getClass())
             return false;
-        DiffusionStatusResponse other = (DiffusionStatusResponse) obj;
+        DiffusionPaintingState other = (DiffusionPaintingState) obj;
         return censored == other.censored && Objects.equals(errorDescription, other.errorDescription)
-                && Objects.equals(images, other.images) && Objects.equals(status, other.status)
-                && Objects.equals(uuid, other.uuid);
+                && Objects.equals(images, other.images) && status == other.status && Objects.equals(uuid, other.uuid);
     }
 
     @Override
     public String toString() {
-        return "DiffusionStatusResponse [uuid=" + uuid + ", status=" + status + ", errorDescription=" + errorDescription
-                + ", images=" + images + ", censored=" + censored + "]";
+        return "DiffusionPaintingState [uuid=" + uuid + ", status=" + status + ", errorDescription=" + errorDescription
+                + ", imagesCount=" + images.size() + ", censored=" + censored + "]";
     }
 
 }

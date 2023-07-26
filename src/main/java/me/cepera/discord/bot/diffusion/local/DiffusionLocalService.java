@@ -1,7 +1,9 @@
 package me.cepera.discord.bot.diffusion.local;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -10,18 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import me.cepera.discord.bot.diffusion.converter.BodyConverter;
-import me.cepera.discord.bot.diffusion.enums.QueueStatus;
+import me.cepera.discord.bot.diffusion.enums.ProcessStatus;
+import me.cepera.discord.bot.diffusion.model.DiffusionPaintingState;
 import me.cepera.discord.bot.diffusion.remote.DiffusionRemoteService;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionEntitiesResponse;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionGenerationResult;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionPocket;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionQueue;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionQueueResponse;
-import me.cepera.discord.bot.diffusion.remote.dto.DiffusionResponse;
+import me.cepera.discord.bot.diffusion.remote.dto.DiffusionPaintingParams;
+import me.cepera.discord.bot.diffusion.remote.dto.DiffusionRunParams;
 import me.cepera.discord.bot.diffusion.remote.dto.DiffusionRunResponse;
 import me.cepera.discord.bot.diffusion.remote.dto.DiffusionStatusResponse;
 import me.cepera.discord.bot.diffusion.style.ImageStyle;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public class DiffusionLocalService {
@@ -30,74 +28,75 @@ public class DiffusionLocalService {
 
     private final DiffusionRemoteService remoteService;
 
-    private final BodyConverter<DiffusionQueueResponse> queueResponseConverter;
     private final BodyConverter<DiffusionRunResponse> runResponseConverter;
     private final BodyConverter<DiffusionStatusResponse> statusResponseConverter;
-    private final BodyConverter<DiffusionEntitiesResponse> entitiesResponseConverter;
+
+    private final BodyConverter<DiffusionRunParams> runParamsConverter;
 
     @Inject
     public DiffusionLocalService(DiffusionRemoteService remoteService,
-            BodyConverter<DiffusionQueueResponse> queueResponseConverter,
+            BodyConverter<DiffusionRunParams> runParamsConverter,
             BodyConverter<DiffusionRunResponse> runResponseConverter,
-            BodyConverter<DiffusionStatusResponse> statusResponseConverter,
-            BodyConverter<DiffusionEntitiesResponse> entitiesResponseConverter) {
+            BodyConverter<DiffusionStatusResponse> statusResponseConverter) {
         this.remoteService = remoteService;
-        this.queueResponseConverter = queueResponseConverter;
+        this.runParamsConverter = runParamsConverter;
         this.runResponseConverter = runResponseConverter;
         this.statusResponseConverter = statusResponseConverter;
-        this.entitiesResponseConverter = entitiesResponseConverter;
     }
 
-    public Mono<DiffusionQueue> checkQueue(){
-        return remoteService.checkQueue()
-                .flatMap(queueResponseConverter::read)
-                .map(this::fetchResult);
-    }
-
-    public Mono<QueueStatus> getStatus(String pocketId){
-        return remoteService.getStatus(pocketId)
+    public Mono<DiffusionPaintingState> checkGeneration(String jobUuid){
+        return remoteService.getStatus(jobUuid)
                 .flatMap(statusResponseConverter::read)
-                .map(this::fetchResult)
-                .map(this::queueStatusFromString);
+                .map(statusDto->{
+                    DiffusionPaintingState state = new DiffusionPaintingState();
+                    state.setStatus(processStatusFromString(statusDto.getStatus()));
+                    state.setCensored(statusDto.isCensored());
+                    state.setErrorDescription(statusDto.getErrorDescription());
+                    state.setUuid(statusDto.getUuid());
+                    List<byte[]> images = new ArrayList<>();
+                    if(statusDto.getImages() != null) {
+                        statusDto.getImages().forEach(imageBase64->images.add(base64ToBytes(imageBase64)));
+                    }
+                    state.setImages(images);
+                    return state;
+                });
     }
 
-    public Mono<DiffusionPocket> runGeneration(String query, ImageStyle style, double preset, @Nullable byte[] imageBytes){
-        Map<String, String> params = new LinkedHashMap<String, String>();
-        params.put("query", query);
-        params.put("preset", presetToString(preset));
-        params.put("style", style.getStyleQuery());
-        return remoteService.run("generate", params, imageBytes)
-                .flatMap(runResponseConverter::read)
-                .map(this::fetchResult);
-    }
-
-    private String presetToString(double preset) {
-        if(preset == (long) preset) {
-            return String.format("%d",(long)preset);
+    public Mono<DiffusionPaintingState> runGeneration(String query, ImageStyle style, int width, int height, @Nullable byte[] imageBytes){
+        DiffusionRunParams params = new DiffusionRunParams();
+        DiffusionPaintingParams paintingParams = new DiffusionPaintingParams();
+        paintingParams.setQuery(query);
+        if(imageBytes == null || imageBytes.length == 0) {
+            params.setType("GENERATE");
+            params.setGenerateParams(paintingParams);
         }else {
-            return String.format("%s",preset);
+            params.setType("INPAINTING");
+            params.setInPaintingParams(paintingParams);
         }
+        params.setStyle(query);
+        params.setHeight(height);
+        params.setWidth(width);
+        params.setStyle(style.getStyleParamValue());
+        return runParamsConverter.write(params)
+                .flatMap(paramsBytes->remoteService.run(1, paramsBytes, imageBytes))
+                .flatMap(runResponseConverter::read)
+                .map(runResultDto->{
+                    DiffusionPaintingState state = new DiffusionPaintingState();
+                    state.setStatus(processStatusFromString(runResultDto.getStatus()));
+                    state.setUuid(runResultDto.getUuid());
+                    return state;
+                });
     }
 
-    public Flux<DiffusionGenerationResult> getGenerationResults(String pocketId){
-        return remoteService.getEntities(pocketId)
-                .flatMap(entitiesResponseConverter::read)
-                .flatMapIterable(DiffusionEntitiesResponse::getResult);
+    private byte[] base64ToBytes(String base64) {
+        return Base64.getDecoder().decode(new String(base64).getBytes(StandardCharsets.UTF_8));
     }
 
-    private <T> T fetchResult(DiffusionResponse<T> response) {
-        if(!response.isSuccess()) {
-            LOGGER.error("Diffusion service responsed with error flag. Response: {}", response);
-            throw new IllegalStateException("Diffusion service responsed with error flag");
-        }
-        return response.getResult();
-    }
-
-    private QueueStatus queueStatusFromString(String stringValue) {
-        QueueStatus status = QueueStatus.valueOf(stringValue.toUpperCase());
+    private ProcessStatus processStatusFromString(String stringValue) {
+        ProcessStatus status = ProcessStatus.valueOf(stringValue.toUpperCase());
         if(status == null) {
-            LOGGER.warn("Received unknown queue status {}. Figure it out as ERROR.", stringValue);
-            return QueueStatus.ERROR;
+            LOGGER.warn("Received unknown process status {}. Figure it out as ERROR.", stringValue);
+            return ProcessStatus.ERROR;
         }
         return status;
     }

@@ -2,21 +2,21 @@ package me.cepera.discord.bot.diffusion.remote.dto;
 
 import java.util.Objects;
 
-public class DiffusionPocket {
+public class DiffusionPaintingParams {
 
-    private String pocketId;
+    private String query;
 
-    public String getPocketId() {
-        return pocketId;
+    public String getQuery() {
+        return query;
     }
 
-    public void setPocketId(String pocketId) {
-        this.pocketId = pocketId;
+    public void setQuery(String query) {
+        this.query = query;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pocketId);
+        return Objects.hash(query);
     }
 
     @Override
@@ -27,13 +27,13 @@ public class DiffusionPocket {
             return false;
         if (getClass() != obj.getClass())
             return false;
-        DiffusionPocket other = (DiffusionPocket) obj;
-        return Objects.equals(pocketId, other.pocketId);
+        DiffusionPaintingParams other = (DiffusionPaintingParams) obj;
+        return Objects.equals(query, other.query);
     }
 
     @Override
     public String toString() {
-        return "DiffusionPocket [pocketId=" + pocketId + "]";
+        return "DiffusionPaintingParams [query=" + query + "]";
     }
 
 }

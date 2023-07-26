@@ -1,14 +1,14 @@
 package me.cepera.discord.bot.diffusion.enums;
 
-public enum QueueStatus {
+public enum ProcessStatus {
 
     ERROR,
     INITIAL,
     PROCESSING,
-    SUCCESS;
+    DONE;
 
     public boolean isTerminalStatus() {
-        return this == ERROR || this == SUCCESS;
+        return this == ERROR || this == DONE;
     }
 
 }

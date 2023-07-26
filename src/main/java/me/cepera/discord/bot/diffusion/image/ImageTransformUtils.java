@@ -62,8 +62,38 @@ public class ImageTransformUtils {
         return resizedImage;
     }
 
-    public static byte[] transformImageByDefault(byte[] imageContent, ImageShift sourceImageShift) {
-        return writeImage(expandImage(setMaxDimension(readImage(imageContent), 512), 768, 768, sourceImageShift));
+    public static byte[] transformImageToSquare(byte[] imageContent, int sourceSice, int targetSize, ImageShift sourceImageShift) {
+        return writeImage(expandImage(setMaxDimension(readImage(imageContent), sourceSice), targetSize, targetSize, sourceImageShift));
+    }
+
+    public static byte[] transformImageMaxDimension(byte[] imageContent, int maxDimension) {
+        return writeImage(setMaxDimension(readImage(imageContent), maxDimension));
+    }
+
+    public static int mediumARGB(byte[] imageContent) {
+        BufferedImage image = readImage(imageContent);
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int pixels = 0;
+        int sr = 0;
+        int sg = 0;
+        int sb = 0;
+        for(int x = 0; x < width; ++x) {
+            for(int y = 0; y < height; ++y) {
+                int rgb = image.getRGB(x, y);
+                if(rgb == 0) {
+                    continue;
+                }
+                pixels++;
+                sr += (rgb >>> 16) & 0x000000ff;
+                sg += (rgb >>> 8) & 0x000000ff;
+                sb += rgb & 0x000000ff;
+            }
+        }
+        if(pixels == 0) {
+            return 0;
+        }
+        return 0xff000000 | (sr/pixels << 16) | (sg/pixels << 8) | sb/pixels;
     }
 
 }

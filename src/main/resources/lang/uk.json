@@ -16,9 +16,6 @@
 	  "command.style.option.style": "стиль",
 	  "command.style.option.style.description": "Новый стиль картин",
 
-	  "command.queue": "очередь",
-	  "command.queue.description": "Проверить состояние очереди нейронной сети",
-
 	  "message.paint.started": "Рисуем \"{description}\"...",
 	  "message.paint.started.styled": "Рисуем \"{description}\" в стиле {style}...",
 	  "message.paint.queued": "Рисунок \"{description}\" добавлен в очередь...",
@@ -26,7 +23,6 @@
 	  "message.paint.error": "Во время рисования произошла ошибка.",
 	  "message.paint.wrong_attachment": "Можно использовать только изображения в формате PNG или JPEG",
 	  "message.style.changed": "Теперь ваш стандартный стиль картин - {style}",
-	  "message.queue.status": "Текущее состояние очереди: {current} {day}",
 	  "message.command.error": "Во время выполнения команды произошла ошибка",
 
 	  "element.painted": "Нарисовано",
@@ -63,8 +59,6 @@
 	  "style.cartoons": "Мультфильмы",
 	  "style.photo_studio": "Студийное фото",
 	  "style.portrait_photo": "Портретное фото",
-	  "style.mosaic": "Мозайка",
-	  "style.icon": "Иконопись",
 	  "style.khokhloma": "Хохлома",
 	  "style.new_year": "Новый год"
 	}

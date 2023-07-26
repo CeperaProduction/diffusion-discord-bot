@@ -6,7 +6,7 @@
 
 	<groupId>me.cepera</groupId>
 	<artifactId>discord-diffusion-bot</artifactId>
-	<version>1.2.0</version>
+	<version>1.3.0</version>
 
 	<name>Discord bot interface wrapper for https://fusionbrain.ai/diffusion</name>
 

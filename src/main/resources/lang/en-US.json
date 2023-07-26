@@ -16,9 +16,6 @@
 	  "command.style.option.style": "style",
 	  "command.style.option.style.description": "New default image style",
 
-	  "command.queue": "queue",
-	  "command.queue.description": "Check backed neural network's queue",
-
 	  "message.paint.started": "Paint \"{description}\"...",
 	  "message.paint.started.styled": "Paint \"{description}\" in style of {style}...",
 	  "message.paint.queued": "Painting \"{description}\" is queued...",
@@ -26,7 +23,6 @@
 	  "message.paint.error": "An unexpected error occurred while painting the picture",
 	  "message.paint.wrong_attachment": "Only PNG or JPEG image can be used as source image",
 	  "message.style.changed": "Your new painting style is {style}",
-	  "message.queue.status": "Current queue status is: {current} {day}",
 	  "message.command.error": "An error occurred during command execution",
 
 	  "element.painted": "Painted",
@@ -63,8 +59,6 @@
 	  "style.cartoons": "Cartoons",
 	  "style.photo_studio": "Photo studio",
 	  "style.portrait_photo": "Portrait photo",
-	  "style.mosaic": "Mosaic",
-	  "style.icon": "Icons",
 	  "style.khokhloma": "Khokhloma",
 	  "style.new_year": "New year"
 	}

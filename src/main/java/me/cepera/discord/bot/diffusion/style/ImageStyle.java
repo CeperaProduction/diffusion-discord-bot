@@ -8,13 +8,9 @@ public interface ImageStyle extends Translatable{
 
     String getKey();
 
-    int getValue();
+    String getStyleParamValue();
 
-    String getStyleQuery();
-
-    default boolean isUndefinedStyle() {
-        return getStyleQuery().isEmpty();
-    }
+    boolean isUndefinedStyle();
 
     @Override
     default String getLangKey() {
