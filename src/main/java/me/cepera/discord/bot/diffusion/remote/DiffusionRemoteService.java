@@ -2,6 +2,7 @@ package me.cepera.discord.bot.diffusion.remote;
 
 import java.net.URI;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -10,8 +11,6 @@ import javax.inject.Inject;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableMap;
 
 import reactor.core.publisher.Mono;
 
@@ -28,9 +27,9 @@ public class DiffusionRemoteService implements RemoteService{
 
     @Inject
     public DiffusionRemoteService() {
-        extraFormHeaders = ImmutableMap.<String,String>builder()
-                .put("Host", "api.fusionbrain.ai")
-                .build();
+        Map<String, String> extraFormHeaders = new HashMap<String, String>();
+        extraFormHeaders.put("Host", "api.fusionbrain.ai");
+        this.extraFormHeaders = Collections.unmodifiableMap(extraFormHeaders);
     }
 
     public Mono<byte[]> run(int modelId, byte[] paramsBytes, @Nullable byte[] imageBytes){

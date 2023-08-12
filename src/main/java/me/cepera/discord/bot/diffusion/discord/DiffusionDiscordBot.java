@@ -218,8 +218,8 @@ public class DiffusionDiscordBot extends BasicDiscordBot{
             }
         }
 
-        Duration pollingInterval = Duration.ofSeconds(3);
-        int maxPollings = 150;
+        Duration pollingInterval = Duration.ofSeconds(5);
+        int maxPollings = 20;
 
         return Mono.defer(()->event.reply(InteractionApplicationCommandCallbackSpec.builder()
                         .ephemeral(true)
