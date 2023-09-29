@@ -51,10 +51,11 @@ public class DiffusionLocalServiceTest {
     @Test
     void testImageGeneration() throws InterruptedException {
 
-        ImageStyle style = DefaultDiffusionImageStyle.ANIME;
+        ImageStyle style = DefaultDiffusionImageStyle.NO_STYLE;
         String description = "Электропоезд ласточка";
+        String negate = "Желтый";
 
-        DiffusionPaintingState painting = service.runGeneration(description, style, 1024, 1024, null).block();
+        DiffusionPaintingState painting = service.runGeneration(description, negate, style, 1024, 1024, null).block();
 
         System.err.println("painting: "+painting);
 
@@ -95,7 +96,7 @@ public class DiffusionLocalServiceTest {
 
         System.err.println("input file size: "+inputImageBytes.length);
 
-        DiffusionPaintingState painting = service.runGeneration(description, style, 1024, 1024, inputImageBytes).block();
+        DiffusionPaintingState painting = service.runGeneration(description, null, style, 1024, 1024, inputImageBytes).block();
 
         System.err.println("painting: "+painting);
 

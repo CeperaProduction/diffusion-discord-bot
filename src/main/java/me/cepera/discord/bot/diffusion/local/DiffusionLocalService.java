@@ -2,6 +2,7 @@ package me.cepera.discord.bot.diffusion.local;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
@@ -62,7 +63,7 @@ public class DiffusionLocalService {
                 });
     }
 
-    public Mono<DiffusionPaintingState> runGeneration(String query, ImageStyle style, int width, int height, @Nullable byte[] imageBytes){
+    public Mono<DiffusionPaintingState> runGeneration(String query, String negate, ImageStyle style, int width, int height, @Nullable byte[] imageBytes){
         DiffusionRunParams params = new DiffusionRunParams();
         DiffusionPaintingParams paintingParams = new DiffusionPaintingParams();
         paintingParams.setQuery(query);
@@ -72,6 +73,9 @@ public class DiffusionLocalService {
         }else {
             params.setType("INPAINTING");
             params.setInPaintingParams(paintingParams);
+        }
+        if(negate != null && !negate.trim().isEmpty()) {
+            params.setNegativePromptDecoder(negate);
         }
         params.setStyle(query);
         params.setHeight(height);
@@ -93,12 +97,14 @@ public class DiffusionLocalService {
     }
 
     private ProcessStatus processStatusFromString(String stringValue) {
-        ProcessStatus status = ProcessStatus.valueOf(stringValue.toUpperCase());
-        if(status == null) {
-            LOGGER.warn("Received unknown process status {}. Figure it out as ERROR.", stringValue);
-            return ProcessStatus.ERROR;
-        }
-        return status;
+        return Arrays.asList(ProcessStatus.values())
+                .stream()
+                .filter(status->status.name().equals(stringValue.toUpperCase()))
+                .findAny()
+                .orElseGet(()->{
+                    LOGGER.warn("Received unknown process status {}. Figure it out as ERROR.", stringValue);
+                    return ProcessStatus.ERROR;
+                });
     }
 
 }

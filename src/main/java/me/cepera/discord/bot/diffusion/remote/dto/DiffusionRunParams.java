@@ -5,6 +5,7 @@ import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
+@JsonInclude(Include.NON_NULL)
 public class DiffusionRunParams {
 
     private String type;
@@ -15,10 +16,10 @@ public class DiffusionRunParams {
 
     private Integer height;
 
-    @JsonInclude(Include.NON_NULL)
+    private String negativePromptDecoder;
+
     private DiffusionPaintingParams inPaintingParams;
 
-    @JsonInclude(Include.NON_NULL)
     private DiffusionPaintingParams generateParams;
 
     public String getType() {
@@ -69,9 +70,24 @@ public class DiffusionRunParams {
         this.generateParams = generateParams;
     }
 
+    public String getNegativePromptDecoder() {
+        return negativePromptDecoder;
+    }
+
+    public void setNegativePromptDecoder(String negativePromptDecoder) {
+        this.negativePromptDecoder = negativePromptDecoder;
+    }
+
+    @Override
+    public String toString() {
+        return "DiffusionRunParams [type=" + type + ", style=" + style + ", width=" + width + ", height=" + height
+                + ", negativePromptDecoder=" + negativePromptDecoder + ", inPaintingParams=" + inPaintingParams
+                + ", generateParams=" + generateParams + "]";
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(generateParams, height, inPaintingParams, style, type, width);
+        return Objects.hash(generateParams, height, inPaintingParams, negativePromptDecoder, style, type, width);
     }
 
     @Override
@@ -84,14 +100,10 @@ public class DiffusionRunParams {
             return false;
         DiffusionRunParams other = (DiffusionRunParams) obj;
         return Objects.equals(generateParams, other.generateParams) && Objects.equals(height, other.height)
-                && Objects.equals(inPaintingParams, other.inPaintingParams) && Objects.equals(style, other.style)
-                && Objects.equals(type, other.type) && Objects.equals(width, other.width);
-    }
-
-    @Override
-    public String toString() {
-        return "DiffusionRunParams [type=" + type + ", style=" + style + ", width=" + width + ", height=" + height
-                + ", inPaintingParams=" + inPaintingParams + ", generateParams=" + generateParams + "]";
+                && Objects.equals(inPaintingParams, other.inPaintingParams)
+                && Objects.equals(negativePromptDecoder, other.negativePromptDecoder)
+                && Objects.equals(style, other.style) && Objects.equals(type, other.type)
+                && Objects.equals(width, other.width);
     }
 
 }
